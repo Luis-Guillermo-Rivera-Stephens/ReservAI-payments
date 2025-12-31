@@ -1,6 +1,5 @@
 // Cargar variables de entorno
 require('dotenv').config();
-
 // Configurar zona horaria para Guadalajara, Jalisco, México
 const timezone = process.env.TIMEZONE || 'America/Mexico_City';
 process.env.TZ = timezone;
@@ -13,7 +12,9 @@ const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const helmet = require('helmet');
 const { connectDB, getDB } = require('./data/connectDB');
-const router = require('./router/router');
+const apiRouter = require('./router/api.router');
+const webhookRouter = require('./router/webhook.router');
+const VerifyStripeEvent = require('./middlewares/VerifyStripeEvent');
 const SQLInjectionDetector = require('./middlewares/SQLInjectionDetector');
 
 
@@ -73,15 +74,10 @@ const helmetOptions = {
 // Middleware de seguridad
 app.use(helmet(helmetOptions));
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' })); // Límite de tamaño para prevenir DoS
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.set('trust proxy', 1);
 
 // Aplicar rate limiting a todas las rutas
 app.use(limiter);
-
-// Detector de inyección SQL - DEBE ir después de express.json()
-app.use(SQLInjectionDetector.middleware());
 
 // Inicializar servidor y base de datos
 const startServer = async () => {
@@ -91,9 +87,10 @@ const startServer = async () => {
     await connectDB();
     console.log('✅ Base de datos conectada exitosamente');
 
-    // Configurar rutas para que funcionen con y sin prefijo /api
-    app.use(router); // Rutas sin prefijo: /health, /account, etc.
-    app.use('/api', router); // Rutas con prefijo: /api/health, /api/account, etc.
+    app.use("/webhooks", express.raw({type: 'application/json'}), VerifyStripeEvent, webhookRouter);
+    
+
+    app.use('/api', express.json({ limit: '10mb' }), express.urlencoded({ extended: true, limit: '10mb' }), SQLInjectionDetector.middleware(), apiRouter);
 
     // Iniciar servidor
     app.listen(PORT, '0.0.0.0', () => {
