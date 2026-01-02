@@ -1,0 +1,33 @@
+const CreatePaymentHistoryInDB = require('../queries/CreatePaymentHistoryInDB');
+const PaymentHistory = require('../models/paymentHistory');
+
+class PaymentHistoryManager {
+    static async createPaymentHistoryInDB(paymentHistory, db) {
+        try {
+            const paymentData = paymentHistory.toJSON();
+            const result = await db.query(CreatePaymentHistoryInDB, [
+                paymentData.id,
+                paymentData.stripe_subscription_id,
+                paymentData.stripe_invoice_id,
+                paymentData.stripe_payment_intent_id,
+                paymentData.status,
+                paymentData.amount,
+                paymentData.created_at
+            ]);
+            return {
+                success: true,
+                message: 'Payment history created successfully',
+                payment: result.rows[0]
+            }
+        } catch (error) {
+            return {
+                success: false,
+                message: 'Error creating payment history',
+                error: error.message
+            }
+        }
+    }
+}
+
+module.exports = PaymentHistoryManager;
+

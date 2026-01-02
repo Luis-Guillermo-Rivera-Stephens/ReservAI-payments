@@ -1,8 +1,7 @@
-const Stripe = require('stripe');
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const getStripeInstance = require('../data/StripeInstanceGetter');
 
 class WebhooksManager {
-    static async createEvent(signature, payload) {
+    static async createEvent(signature, payload, stripe) {
         try {
             // El payload debe ser un Buffer (express.raw() lo proporciona así)
             // Stripe espera el payload como Buffer o string

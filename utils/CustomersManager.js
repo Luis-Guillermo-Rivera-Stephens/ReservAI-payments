@@ -1,7 +1,5 @@
 const CustomerExistByID = require('../queries/CustomerExistByID');
 const CreateCustomerInDB = require('../queries/CreateCustomerInDB.js');
-const Stripe = require('stripe');
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 
 class CustomersManager {
@@ -14,6 +12,30 @@ class CustomersManager {
                 exists: result.rows[0] ? true : false
             }
         } catch (error) {
+            return {
+                error: error.message,
+                success: false
+            }
+        }
+    }
+
+    static async createCustomerInStripe(account_id, email, name, stripe) {
+        let customer = null;
+        try {
+            customer = await stripe.customers.create({
+                email: email,
+                name: name,
+                metadata: {
+                    user_id: account_id
+                }
+            });
+            return {
+                success: true,
+                message: 'Customer created successfully',
+                customer: customer
+            }
+        }
+        catch (error) {
             return {
                 error: error.message,
                 success: false
@@ -38,7 +60,7 @@ class CustomersManager {
         }
     }
 
-    static async createPortalSession(stripe_customer_id) {
+    static async createPortalSession(stripe_customer_id, stripe) {
         try {
             const session = await stripe.billingPortal.sessions.create({
                 customer: stripe_customer_id,

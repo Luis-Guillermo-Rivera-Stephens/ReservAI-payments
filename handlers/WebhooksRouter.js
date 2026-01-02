@@ -1,17 +1,35 @@
+const CustomerInfo = require('../models/customerInfo');
+const { connectDB } = require('../data/connectDB');
+const CustomersManager = require('../utils/CustomersManager');
+
+
 const WebhooksRouter = async (req, res) => {
     const event = req.event;
-
-    console.log('WebhooksRouter: event received:\n', event);
-    // IMPORTANTE: Stripe espera una respuesta 200 dentro de 20 segundos
-    // Retornamos inmediatamente y procesamos el evento de forma asíncrona
     res.status(200).json({ received: true });
-    
+    let db = null;
+    try {
+        db = await connectDB();
+    } catch (error) {
+        console.error('❌ Error conectando a la base de datos:', error.message);
+        return;
+    }
     // Procesar el evento de forma asíncrona
     try {
-        console.log(`📥 Webhook recibido - Tipo: ${event.type}, ID: ${event.id}`);
-        
+
         // Manejar solo los tipos de eventos necesarios
         switch (event.type) {
+
+            case 'customer.created':
+                console.log('✅ Customer created:', event.data.object.id);
+                const customer = CustomerInfo.fromStripeObject(event.data.object);
+                const result = await CustomersManager.createCustomerInDB(customer.account_id, customer.stripe_customer_id, db);
+                if (result.error) {
+                    console.error('❌ Error creando customer en DB:', result.error);
+                    return;
+                }
+                console.log('✅ Customer created in DB');
+                break;
+
             case 'customer.subscription.created':
                 console.log('✅ Suscripción creada:', event.data.object.id);
                 // Aquí puedes agregar lógica para cuando se crea una suscripción
@@ -48,7 +66,6 @@ const WebhooksRouter = async (req, res) => {
         // IMPORTANTE: Los errores aquí no afectan la respuesta a Stripe
         // ya que ya retornamos 200. Solo los logueamos.
         console.error('❌ Error procesando webhook:', error.message);
-        console.error('Evento:', event);
     }
     
     return;

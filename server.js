@@ -89,7 +89,6 @@ const startServer = async () => {
 
     app.use("/webhooks", express.raw({type: 'application/json'}), VerifyStripeEvent, webhookRouter);
     
-
     app.use('/api', express.json({ limit: '10mb' }), express.urlencoded({ extended: true, limit: '10mb' }), SQLInjectionDetector.middleware(), apiRouter);
 
     // Iniciar servidor

@@ -5,6 +5,8 @@ const router = express.Router();
 const AccountIsAClient = require('../middlewares/AccountIsAClient');
 const CustomerIsAvailable = require('../middlewares/CustomerIsAvailable');
 const CustomerExistByID = require('../middlewares/CustomerExistByID');
+const AccountExistByID = require('../middlewares/AccountExistByID');
+const VerifyToken = require('../middlewares/VerifyToken');
 
 //handlers
 const CreateStripeCustomer = require('../handlers/CreateStripeCustomer');
@@ -22,8 +24,8 @@ router.get('/health', (req, res) => {
     });
   });
 
-router.post("/customer", AccountIsAClient, CustomerIsAvailable, CreateStripeCustomer);
-router.get("/portal", AccountIsAClient, CustomerExistByID, CreatePortalSession);
+router.post("/customer", VerifyToken, AccountExistByID, AccountIsAClient, CustomerIsAvailable, CreateStripeCustomer);
+router.get("/portal", VerifyToken, AccountExistByID, AccountIsAClient, CustomerExistByID, CreatePortalSession);
 //router.get("/status", AccountIsAClient, CustomerExistByID, GetStatus);
 
 

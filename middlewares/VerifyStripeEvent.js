@@ -1,6 +1,14 @@
 const WebhooksManager = require('../utils/WebhooksManager');
+const getStripeInstance = require('../data/StripeInstanceGetter');
 
 const VerifyStripeEvent = async (req, res, next) => {
+
+    let stripe = null;
+    try {
+        stripe = await getStripeInstance();
+    } catch (error) {
+        return res.status(500).json({ error: 'Internal server error' });
+    }
     // Stripe envía la firma en el header 'stripe-signature'
     const signature = req.headers['stripe-signature'];
     
@@ -23,7 +31,7 @@ const VerifyStripeEvent = async (req, res, next) => {
         });
     }
 
-    const result = await WebhooksManager.createEvent(signature, payload);
+    const result = await WebhooksManager.createEvent(signature, payload, stripe);
     
     if (result.error) {
         console.error('❌ Error verificando webhook:', result.error);
