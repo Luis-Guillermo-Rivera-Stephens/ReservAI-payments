@@ -55,13 +55,72 @@ const WebhooksRouter = async (req, res) => {
             case 'customer.subscription.updated':
                 console.log('🔄 Suscripción actualizada:', event.data.object.id);
                 console.log('Event data:', JSON.stringify(event.data, null, 2));
-                // Aquí puedes agregar lógica para cuando se actualiza una suscripción
+                try {
+                    const stripeSubscription = event.data.object;
+                    const previousAttributes = event.data.previous_attributes || {};
+                    let shouldUpdate = false;
+                    
+                    // Caso 1: Se solicita cancelación (cancellation_details.reason === 'cancellation_requested')
+                    if (stripeSubscription.cancellation_details?.reason === 'cancellation_requested') {
+                        stripeSubscription.cancel_at_period_end = true;
+                        console.log('⚠️ Cancellation requested detectada, cancel_at_period_end será true');
+                        shouldUpdate = true;
+                    }
+                    // Caso 2: Se cancela la cancelación (reactivación)
+                    // cancel_at_period_end es false Y cancellation_details.reason es null Y antes había cancellation_requested
+                    else if (
+                        stripeSubscription.cancel_at_period_end === false &&
+                        (!stripeSubscription.cancellation_details?.reason || stripeSubscription.cancellation_details.reason === null) &&
+                        previousAttributes.cancellation_details?.reason === 'cancellation_requested'
+                    ) {
+                        stripeSubscription.cancel_at_period_end = false;
+                        console.log('✅ Cancelación de cancelación detectada (reactivación), cancel_at_period_end será false');
+                        shouldUpdate = true;
+                    }
+                    
+                    if (shouldUpdate) {
+                        const subscription = Subscription.fromStripeObject(stripeSubscription);
+                        console.log('✅ Suscripción actualizada en Stripe:', subscription);
+                        const result = await SubscriptionManager.updateSubscriptionInDB(subscription, db);
+                        if (!result.success) {
+                            console.error('❌ Error actualizando suscripción en DB:', result.error);
+                        } else {
+                            console.log('✅ Suscripción actualizada en DB:', subscription.stripe_subscription_id);
+                        }
+                    } else {
+                        console.log('ℹ️ No hay cambios de cancelación, no se actualiza en DB');
+                    }
+                } catch (error) {
+                    console.error('❌ Error procesando suscripción actualizada:', error.message);
+                }
                 break;
                 
             case 'customer.subscription.deleted':
                 console.log('🗑️ Suscripción eliminada:', event.data.object.id);
                 console.log('Event data:', JSON.stringify(event.data, null, 2));
-                // Aquí puedes agregar lógica para cuando se elimina una suscripción
+                try {
+                    const subscription = event.data.object;
+                    const subscriptionId = subscription.id;
+                    const customerId = subscription.customer;
+                    
+                    // Manejar customer que puede ser un string o un objeto expandido
+                    const stripeCustomerId = typeof customerId === 'string' 
+                        ? customerId 
+                        : customerId.id || customerId;
+                    
+                    const result = await SubscriptionManager.updateSubscriptionOnCancellation(
+                        stripeCustomerId,
+                        subscriptionId,
+                        db
+                    );
+                    if (!result.success) {
+                        console.error('❌ Error actualizando suscripción cancelada en DB:', result.error);
+                    } else {
+                        console.log('✅ Suscripción cancelada en DB:', subscriptionId);
+                    }
+                } catch (error) {
+                    console.error('❌ Error procesando suscripción eliminada:', error.message);
+                }
                 break;
                 
             case 'invoice.payment_succeeded':
