@@ -11,6 +11,7 @@ const VerifyToken = require('../middlewares/VerifyToken');
 //handlers
 const CreateStripeCustomer = require('../handlers/CreateStripeCustomer');
 const CreatePortalSession = require('../handlers/CreatePortalSession');
+const GetMyPaymentLinks = require('../handlers/GetMyPaymentLinks');
 //const GetStatus = require('../handlers/GetStatus');
 
 // Las rutas aquí se montan en /api desde server.js
@@ -26,6 +27,7 @@ router.get('/health', (req, res) => {
 
 router.post("/customer", VerifyToken, AccountExistByID, AccountIsAClient, CustomerIsAvailable, CreateStripeCustomer);
 router.get("/portal", VerifyToken, AccountExistByID, AccountIsAClient, CustomerExistByID, CreatePortalSession);
+router.get("/links", VerifyToken, AccountExistByID, AccountIsAClient, CustomerExistByID, GetMyPaymentLinks);
 //router.get("/status", AccountIsAClient, CustomerExistByID, GetStatus);
 
 

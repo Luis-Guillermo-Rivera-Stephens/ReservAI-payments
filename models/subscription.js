@@ -41,7 +41,8 @@ class Subscription {
     // Método estático para crear desde objeto de Stripe
     static fromStripeObject(stripeSubscription) {
         const items = stripeSubscription.items?.data || [];
-        const price = items[0]?.price;
+        const firstItem = items[0];
+        const price = firstItem?.price;
         
         // Manejar product que puede ser un objeto expandido o un ID
         let productId = null;
@@ -51,19 +52,29 @@ class Subscription {
                 : price.product.id || null;
         }
         
-        // Obtener plan_name del nickname del price o del nombre del product
-        let planName = price?.nickname || null;
-        if (!planName && price?.product && typeof price.product === 'object') {
+        // Obtener plan_name: primero de metadata del price, luego metadata de subscription, luego nickname del price, luego nombre del product
+        let planName = null;
+        if (price?.metadata?.plan) {
+            planName = price.metadata.plan;
+        } else if (stripeSubscription.metadata?.plan) {
+            planName = stripeSubscription.metadata.plan;
+        } else if (price?.nickname) {
+            planName = price.nickname;
+        } else if (price?.product && typeof price.product === 'object') {
             planName = price.product.name || null;
         }
+        
+        // Obtener períodos: primero de items.data[0], luego del objeto principal
+        const periodStart = firstItem?.current_period_start || stripeSubscription.current_period_start;
+        const periodEnd = firstItem?.current_period_end || stripeSubscription.current_period_end;
         
         return new Subscription(
             stripeSubscription.customer,
             stripeSubscription.id,
             productId,
             stripeSubscription.status,
-            new Date(stripeSubscription.current_period_start * 1000),
-            new Date(stripeSubscription.current_period_end * 1000),
+            periodStart ? new Date(periodStart * 1000) : new Date(),
+            periodEnd ? new Date(periodEnd * 1000) : new Date(),
             stripeSubscription.cancel_at_period_end || false,
             planName,
             price?.unit_amount ? price.unit_amount / 100 : 0, // Convertir de centavos a dólares

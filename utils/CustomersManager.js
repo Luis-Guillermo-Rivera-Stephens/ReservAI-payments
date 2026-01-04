@@ -26,7 +26,8 @@ class CustomersManager {
                 email: email,
                 name: name,
                 metadata: {
-                    user_id: account_id
+                    user_id: account_id,
+                    currency: 'MXN'
                 }
             });
             return {
@@ -64,6 +65,7 @@ class CustomersManager {
         try {
             const session = await stripe.billingPortal.sessions.create({
                 customer: stripe_customer_id,
+                locale: 'es'
             });
             return {
                 success: true,
