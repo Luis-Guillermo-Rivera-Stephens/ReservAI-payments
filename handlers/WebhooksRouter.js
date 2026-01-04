@@ -1,8 +1,10 @@
 const CustomerInfo = require('../models/customerInfo');
 const Subscription = require('../models/subscription');
+const PaymentHistory = require('../models/paymentHistory');
 const { connectDB } = require('../data/connectDB');
 const CustomersManager = require('../utils/CustomersManager');
 const SubscriptionManager = require('../utils/SubscriptionManager');
+const PaymentHistoryManager = require('../utils/PaymentHistoryManager');
 
 
 const WebhooksRouter = async (req, res) => {
@@ -65,11 +67,11 @@ const WebhooksRouter = async (req, res) => {
             case 'invoice.payment_succeeded':
                 console.log('💳 Pago de factura exitoso:', event.data.object.id);
                 console.log('Event data:', JSON.stringify(event.data, null, 2));
-                const invoice = event.data.object;
-                
-                // Si es el pago inicial de una suscripción, actualizar el estado
-                if (invoice.billing_reason === 'subscription_create' && invoice.subscription) {
-                    try {
+                try {
+                    const invoice = event.data.object;
+                    
+                    // Si el invoice tiene una suscripción asociada, actualizar los períodos
+                    if (invoice.subscription) {
                         const subscriptionId = invoice.subscription;
                         const customerId = invoice.customer;
                         const periodStart = invoice.period_start ? new Date(invoice.period_start * 1000) : null;
@@ -86,19 +88,61 @@ const WebhooksRouter = async (req, res) => {
                             if (!result.success) {
                                 console.error('❌ Error actualizando suscripción en pago exitoso:', result.error);
                             } else {
-                                console.log('✅ Suscripción actualizada a activa:', subscriptionId);
+                                console.log('✅ Suscripción actualizada con nuevos períodos:', subscriptionId);
                             }
                         }
-                    } catch (error) {
-                        console.error('❌ Error procesando pago exitoso de suscripción:', error.message);
                     }
+                    
+                    // Agregar el invoice al payment_history
+                    const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
+                    console.log('📝 PaymentHistory creado:', JSON.stringify(paymentHistory.toJSON(), null, 2));
+                    const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
+                    if (!paymentResult.success) {
+                        console.error('❌ Error creando registro en payment_history:', paymentResult.error);
+                    } else {
+                        console.log('✅ Registro agregado a payment_history:', invoice.id);
+                    }
+                } catch (error) {
+                    console.error('❌ Error procesando pago exitoso de invoice:', error.message);
                 }
                 break;
                 
             case 'invoice.payment_failed':
                 console.log('❌ Pago de factura fallido:', event.data.object.id);
                 console.log('Event data:', JSON.stringify(event.data, null, 2));
-                // Aquí puedes agregar lógica para facturas con pago fallido
+                try {
+                    const invoice = event.data.object;
+                    
+                    // Si el invoice tiene una suscripción asociada, actualizar el estado
+                    if (invoice.subscription) {
+                        const subscriptionId = invoice.subscription;
+                        const customerId = invoice.customer;
+                        
+                        const result = await SubscriptionManager.updateSubscriptionOnPaymentFailed(
+                            customerId,
+                            subscriptionId,
+                            'unpaid',
+                            db
+                        );
+                        if (!result.success) {
+                            console.error('❌ Error actualizando suscripción en pago fallido:', result.error);
+                        } else {
+                            console.log('✅ Suscripción actualizada a unpaid:', subscriptionId);
+                        }
+                    }
+                    
+                    // Agregar el invoice al payment_history
+                    const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
+                    console.log('📝 PaymentHistory creado:', JSON.stringify(paymentHistory.toJSON(), null, 2));
+                    const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
+                    if (!paymentResult.success) {
+                        console.error('❌ Error creando registro en payment_history:', paymentResult.error);
+                    } else {
+                        console.log('✅ Registro agregado a payment_history:', invoice.id);
+                    }
+                } catch (error) {
+                    console.error('❌ Error procesando pago fallido de invoice:', error.message);
+                }
                 break;
                 
             default:

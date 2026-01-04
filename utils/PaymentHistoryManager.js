@@ -9,7 +9,6 @@ class PaymentHistoryManager {
                 paymentData.id,
                 paymentData.stripe_subscription_id,
                 paymentData.stripe_invoice_id,
-                paymentData.stripe_payment_intent_id,
                 paymentData.status,
                 paymentData.amount,
                 paymentData.created_at

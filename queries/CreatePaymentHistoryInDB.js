@@ -3,7 +3,6 @@ module.exports = `
         id,
         stripe_subscription_id,
         stripe_invoice_id,
-        stripe_payment_intent_id,
         status,
         amount,
         created_at
