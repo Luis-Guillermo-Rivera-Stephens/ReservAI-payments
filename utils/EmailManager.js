@@ -2,7 +2,7 @@ class EmailManager {
 
    
 
-    static async sendVerificationEmail(email, subject, content, text_content) {
+    static async sendEmailToCustomer(email, subject, content, text_content) {
         try {
             const nodemailer = require('nodemailer');
             

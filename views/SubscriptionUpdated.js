@@ -43,20 +43,20 @@ class SubscriptionUpdatedMessage {
                 </div>
             `,
             text_content: `
-Hola ${name}
+                Hola ${name}
 
-Tu suscripción a ReservAI ha sido actualizada.
+                Tu suscripción a ReservAI ha sido actualizada.
 
-Detalles actualizados:
-- Plan: ${plan_name || 'Plan Premium'}
-- Monto: ${formattedAmount}
-- Período actual: ${startDate} - ${endDate}
-- Estado: ${statusInfo.text}
+                Detalles actualizados:
+                - Plan: ${plan_name || 'Plan Premium'}
+                - Monto: ${formattedAmount}
+                - Período actual: ${startDate} - ${endDate}
+                - Estado: ${statusInfo.text}
 
-Si tienes alguna pregunta sobre estos cambios, no dudes en contactarnos.
+                Si tienes alguna pregunta sobre estos cambios, no dudes en contactarnos.
 
-Saludos,
-El equipo de ReservAI
+                Saludos,
+                El equipo de ReservAI
             `
         }
     }

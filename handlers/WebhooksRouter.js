@@ -5,12 +5,16 @@ const { connectDB } = require('../data/connectDB');
 const CustomersManager = require('../utils/CustomersManager');
 const SubscriptionManager = require('../utils/SubscriptionManager');
 const PaymentHistoryManager = require('../utils/PaymentHistoryManager');
+const EmailContentManager = require('../utils/EmailContentManager');
+const EmailManager = require('../utils/EmailManager');
+
 
 
 const WebhooksRouter = async (req, res) => {
     const event = req.event;
     res.status(200).json({ received: true });
     let db = null;
+    let eventData = null; // Variable para almacenar la instancia creada (Subscription o PaymentHistory)
     try {
         db = await connectDB();
     } catch (error) {
@@ -19,7 +23,7 @@ const WebhooksRouter = async (req, res) => {
     }
     // Procesar el evento de forma asíncrona
     try {
-
+        
         // Manejar solo los tipos de eventos necesarios
         switch (event.type) {
 
@@ -41,6 +45,7 @@ const WebhooksRouter = async (req, res) => {
                 try {
                     const subscription = Subscription.fromStripeObject(event.data.object);
                     console.log('✅ Suscripción creada en Stripe:', subscription);
+                    eventData = subscription; // Guardar la instancia para el email
                     const result = await SubscriptionManager.createSubscriptionInDB(subscription, db);
                     if (!result.success) {
                         console.error('❌ Error creando suscripción en DB:', result.error);
@@ -81,6 +86,7 @@ const WebhooksRouter = async (req, res) => {
                     if (shouldUpdate) {
                         const subscription = Subscription.fromStripeObject(stripeSubscription);
                         console.log('✅ Suscripción actualizada en Stripe:', subscription);
+                        eventData = subscription; // Guardar la instancia para el email
                         const result = await SubscriptionManager.updateSubscriptionInDB(subscription, db);
                         if (!result.success) {
                             console.error('❌ Error actualizando suscripción en DB:', result.error);
@@ -99,17 +105,13 @@ const WebhooksRouter = async (req, res) => {
                 console.log('🗑️ Suscripción eliminada:', event.data.object.id);
                 console.log('Event data:', JSON.stringify(event.data, null, 2));
                 try {
-                    const subscription = event.data.object;
-                    const subscriptionId = subscription.id;
-                    const customerId = subscription.customer;
-                    
-                    // Manejar customer que puede ser un string o un objeto expandido
-                    const stripeCustomerId = typeof customerId === 'string' 
-                        ? customerId 
-                        : customerId.id || customerId;
+                    const subscription = Subscription.fromStripeObject(event.data.object);
+                    eventData = subscription; // Guardar la instancia para el email
+                    const subscriptionId = subscription.stripe_subscription_id;
+                    const customerId = subscription.stripe_customer_id;
                     
                     const result = await SubscriptionManager.updateSubscriptionOnCancellation(
-                        stripeCustomerId,
+                        customerId,
                         subscriptionId,
                         db
                     );
@@ -154,6 +156,7 @@ const WebhooksRouter = async (req, res) => {
                     
                     // Agregar el invoice al payment_history
                     const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
+                    eventData = invoice; // Guardar el invoice original para el email (tiene todos los campos que necesitan los views)
                     console.log('📝 PaymentHistory creado:', JSON.stringify(paymentHistory.toJSON(), null, 2));
                     const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
                     if (!paymentResult.success) {
@@ -192,6 +195,7 @@ const WebhooksRouter = async (req, res) => {
                     
                     // Agregar el invoice al payment_history
                     const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
+                    eventData = invoice; // Guardar el invoice original para el email (tiene todos los campos que necesitan los views)
                     console.log('📝 PaymentHistory creado:', JSON.stringify(paymentHistory.toJSON(), null, 2));
                     const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
                     if (!paymentResult.success) {
@@ -211,6 +215,94 @@ const WebhooksRouter = async (req, res) => {
         
     } catch (error) {
         console.error('❌ Error procesando webhook:', error.message);
+    }
+    
+    // Enviar email al cliente (excepto para customer.created)
+    try {
+        // Early return si es customer.created
+        if (event.type === 'customer.created') {
+            return;
+        }
+        
+        const eventObject = event.data.object;
+        
+        // Early return si no hay customer
+        if (!eventObject.customer) {
+            return;
+        }
+        
+        // Obtener customer_id (puede ser string o objeto expandido)
+        const customerId = typeof eventObject.customer === 'string' 
+            ? eventObject.customer 
+            : eventObject.customer.id || eventObject.customer;
+        
+        // Early return si no hay customerId
+        if (!customerId) {
+            return;
+        }
+        
+        // Obtener email y nombre del cliente
+        const customerInfo = await CustomersManager.getCustomersEmailAndName(customerId, db);
+        if (!customerInfo.success) {
+            console.error('❌ Error obteniendo email y nombre del cliente:', customerInfo.error);
+            return;
+        }
+        
+        // Early return si no hay eventData
+        if (!eventData) {
+            return;
+        }
+        
+        // Convertir eventData al formato que esperan los views
+        let emailData = null;
+        if (eventData instanceof Subscription) {
+            // Para subscriptions, convertir a formato que esperan los views
+            const subscriptionJSON = eventData.toJSON();
+            emailData = {
+                plan_name: subscriptionJSON.plan_name,
+                amount: subscriptionJSON.amount * 100, // Convertir de dólares a centavos (los views esperan centavos)
+                current_period_start: subscriptionJSON.current_period_start instanceof Date 
+                    ? Math.floor(subscriptionJSON.current_period_start.getTime() / 1000) 
+                    : subscriptionJSON.current_period_start,
+                current_period_end: subscriptionJSON.current_period_end instanceof Date 
+                    ? Math.floor(subscriptionJSON.current_period_end.getTime() / 1000) 
+                    : subscriptionJSON.current_period_end,
+                status: subscriptionJSON.status
+            };
+        } else {
+            // Para invoices, eventData ya es el objeto invoice original de Stripe
+            emailData = eventData;
+        }
+        
+        // Obtener el contenido del email
+        const emailContent = await EmailContentManager.getEmailContent(
+            customerInfo.name,
+            event.type,
+            emailData
+        );
+        
+        // Early return si no hay contenido de email
+        if (!emailContent) {
+            console.log('ℹ️ No hay contenido de email para el evento:', event.type);
+            return;
+        }
+        
+        // Enviar el email
+        const emailResult = await EmailManager.sendEmailToCustomer(
+            customerInfo.email,
+            emailContent.subject,
+            emailContent.content,
+            emailContent.text_content
+        );
+        
+        if (!emailResult.success) {
+            console.error('❌ Error enviando email:', emailResult.error);
+            return;
+        }
+        
+        console.log('✅ Email enviado exitosamente a:', customerInfo.email);
+    } catch (error) {
+        console.error('❌ Error en el proceso de envío de email:', error.message);
     }
     
     return;

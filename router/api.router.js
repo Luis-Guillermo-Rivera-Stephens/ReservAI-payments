@@ -12,7 +12,7 @@ const VerifyToken = require('../middlewares/VerifyToken');
 const CreateStripeCustomer = require('../handlers/CreateStripeCustomer');
 const CreatePortalSession = require('../handlers/CreatePortalSession');
 const GetMyPaymentLinks = require('../handlers/GetMyPaymentLinks');
-//const GetStatus = require('../handlers/GetStatus');
+const GetMySubscriptions = require('../handlers/GetMySubscriptions');
 
 // Las rutas aquí se montan en /api desde server.js
 // Express automáticamente remueve el prefijo /api antes de pasarlo al router
@@ -28,7 +28,7 @@ router.get('/health', (req, res) => {
 router.post("/customer", VerifyToken, AccountExistByID, AccountIsAClient, CustomerIsAvailable, CreateStripeCustomer);
 router.get("/portal", VerifyToken, AccountExistByID, AccountIsAClient, CustomerExistByID, CreatePortalSession);
 router.get("/links", VerifyToken, AccountExistByID, AccountIsAClient, CustomerExistByID, GetMyPaymentLinks);
-//router.get("/status", AccountIsAClient, CustomerExistByID, GetStatus);
+router.get("/status", VerifyToken, AccountExistByID, AccountIsAClient, CustomerExistByID, GetMySubscriptions);
 
 
   // Middleware para manejar rutas no encontradas
