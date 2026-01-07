@@ -21,6 +21,11 @@ const SQLInjectionDetector = require('./middlewares/SQLInjectionDetector');
 // Configuración del servidor
 const app = express();
 const PORT = process.argv[2] || process.env.PORT || 3000;
+const IS_PRODUCTION = process.argv[3] === 'production';
+
+// Establecer variable global para indicar si estamos en producción
+global.IS_PRODUCTION = IS_PRODUCTION;
+process.env.IS_PRODUCTION = IS_PRODUCTION ? 'true' : 'false';
 
 // Configuración del rate limiting - MÁS ESTRICTO
 const limiter = rateLimit({
@@ -104,6 +109,7 @@ const startServer = async () => {
       console.log(`⏰ Zona horaria: ${timezone}`);
       console.log(`📅 Fecha y hora UTC: ${now.toISOString()}`);
       console.log(`🕐 Hora México (Guadalajara): ${mexicoTime.toFormat('yyyy-MM-dd HH:mm:ss')} ${mexicoTime.offsetNameShort}`);
+      console.log(`🔒 Modo: ${IS_PRODUCTION ? 'PRODUCCIÓN (API Keys deshabilitadas)' : 'DESARROLLO (API Keys habilitadas)'}`);
       console.log(`📋 Rutas disponibles:`);
       console.log(`   - GET / (información del servidor)`);
       console.log(`   - GET /health (estado del servidor)`);

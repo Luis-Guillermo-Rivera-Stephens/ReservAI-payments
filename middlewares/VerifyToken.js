@@ -9,12 +9,18 @@ const VerifyToken = async (req, res, next) => {
         return res.status(418).json({ error: 'Token is required' });
     }
 
-    let token_id = ApiKeyManager.VerifyApiKey(token);
-    if (token_id) {
-        req.token_id = token_id;
-        req.token_type = "access";
-        next();
-        return;
+    // En producción, no se permiten API keys
+    const IS_PRODUCTION = global.IS_PRODUCTION || process.env.IS_PRODUCTION === 'true';
+    
+    if (!IS_PRODUCTION) {
+        // Solo verificar API keys si NO estamos en producción
+        let token_id = ApiKeyManager.VerifyApiKey(token);
+        if (token_id) {
+            req.token_id = token_id;
+            req.token_type = "access";
+            next();
+            return;
+        }
     }
     
     const result = TokenManager.VerifyToken(token);
