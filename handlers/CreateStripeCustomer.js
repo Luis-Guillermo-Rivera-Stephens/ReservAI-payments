@@ -4,7 +4,6 @@ const CustomersManager = require('../utils/CustomersManager');
 
 const CreateStripeCustomer = async (req, res) => {
     const {email, name, id} = req.account;
-    let db = null;
     let stripe = null;
     try {
         stripe = await getStripeInstance();

@@ -18,7 +18,6 @@ const WebhooksRouter = async (req, res) => {
     try {
         db = await connectDB();
     } catch (error) {
-        console.error('❌ Error conectando a la base de datos:', error.message);
         return;
     }
     // Procesar el evento de forma asíncrona
@@ -28,38 +27,27 @@ const WebhooksRouter = async (req, res) => {
         switch (event.type) {
 
             case 'customer.created':
-                console.log('✅ Customer created:', event.data.object.id);
-                console.log('Event data:', JSON.stringify(event.data, null, 2));
                 const customer = CustomerInfo.fromStripeObject(event.data.object);
                 const result = await CustomersManager.createCustomerInDB(customer.account_id, customer.stripe_customer_id, db);
                 if (result.error) {
-                    console.error('❌ Error creando customer en DB:', result.error);
                     return;
                 }
-                console.log('✅ Customer created in DB');
                 break;
 
             case 'customer.subscription.created':
-                console.log('✅ Suscripción creada:', event.data.object.id);
-                console.log('Event data:', JSON.stringify(event.data, null, 2));
                 try {
                     const subscription = Subscription.fromStripeObject(event.data.object);
-                    console.log('✅ Suscripción creada en Stripe:', subscription);
                     eventData = subscription; // Guardar la instancia para el email
                     const result = await SubscriptionManager.createSubscriptionInDB(subscription, db);
                     if (!result.success) {
-                        console.error('❌ Error creando suscripción en DB:', result.error);
                         return;
                     }
-                    console.log('✅ Suscripción creada en DB:', subscription.stripe_subscription_id);
                 } catch (error) {
-                    console.error('❌ Error procesando suscripción creada:', error.message);
+                    // Error procesando suscripción creada
                 }
                 break;
                 
             case 'customer.subscription.updated':
-                console.log('🔄 Suscripción actualizada:', event.data.object.id);
-                console.log('Event data:', JSON.stringify(event.data, null, 2));
                 try {
                     const stripeSubscription = event.data.object;
                     const previousAttributes = event.data.previous_attributes || {};
@@ -68,7 +56,6 @@ const WebhooksRouter = async (req, res) => {
                     // Caso 1: Se solicita cancelación (cancellation_details.reason === 'cancellation_requested')
                     if (stripeSubscription.cancellation_details?.reason === 'cancellation_requested') {
                         stripeSubscription.cancel_at_period_end = true;
-                        console.log('⚠️ Cancellation requested detectada, cancel_at_period_end será true');
                         shouldUpdate = true;
                     }
                     // Caso 2: Se cancela la cancelación (reactivación)
@@ -79,31 +66,23 @@ const WebhooksRouter = async (req, res) => {
                         previousAttributes.cancellation_details?.reason === 'cancellation_requested'
                     ) {
                         stripeSubscription.cancel_at_period_end = false;
-                        console.log('✅ Cancelación de cancelación detectada (reactivación), cancel_at_period_end será false');
                         shouldUpdate = true;
                     }
                     
                     if (shouldUpdate) {
                         const subscription = Subscription.fromStripeObject(stripeSubscription);
-                        console.log('✅ Suscripción actualizada en Stripe:', subscription);
                         eventData = subscription; // Guardar la instancia para el email
                         const result = await SubscriptionManager.updateSubscriptionInDB(subscription, db);
                         if (!result.success) {
-                            console.error('❌ Error actualizando suscripción en DB:', result.error);
-                        } else {
-                            console.log('✅ Suscripción actualizada en DB:', subscription.stripe_subscription_id);
+                            // Error actualizando suscripción en DB
                         }
-                    } else {
-                        console.log('ℹ️ No hay cambios de cancelación, no se actualiza en DB');
                     }
                 } catch (error) {
-                    console.error('❌ Error procesando suscripción actualizada:', error.message);
+                    // Error procesando suscripción actualizada
                 }
                 break;
                 
             case 'customer.subscription.deleted':
-                console.log('🗑️ Suscripción eliminada:', event.data.object.id);
-                console.log('Event data:', JSON.stringify(event.data, null, 2));
                 try {
                     const subscription = Subscription.fromStripeObject(event.data.object);
                     eventData = subscription; // Guardar la instancia para el email
@@ -116,18 +95,14 @@ const WebhooksRouter = async (req, res) => {
                         db
                     );
                     if (!result.success) {
-                        console.error('❌ Error actualizando suscripción cancelada en DB:', result.error);
-                    } else {
-                        console.log('✅ Suscripción cancelada en DB:', subscriptionId);
+                        // Error actualizando suscripción cancelada en DB
                     }
                 } catch (error) {
-                    console.error('❌ Error procesando suscripción eliminada:', error.message);
+                    // Error procesando suscripción eliminada
                 }
                 break;
                 
             case 'invoice.payment_succeeded':
-                console.log('💳 Pago de factura exitoso:', event.data.object.id);
-                console.log('Event data:', JSON.stringify(event.data, null, 2));
                 try {
                     const invoice = event.data.object;
                     
@@ -147,9 +122,7 @@ const WebhooksRouter = async (req, res) => {
                                 db
                             );
                             if (!result.success) {
-                                console.error('❌ Error actualizando suscripción en pago exitoso:', result.error);
-                            } else {
-                                console.log('✅ Suscripción actualizada con nuevos períodos:', subscriptionId);
+                                // Error actualizando suscripción en pago exitoso
                             }
                         }
                     }
@@ -157,21 +130,16 @@ const WebhooksRouter = async (req, res) => {
                     // Agregar el invoice al payment_history
                     const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
                     eventData = invoice; // Guardar el invoice original para el email (tiene todos los campos que necesitan los views)
-                    console.log('📝 PaymentHistory creado:', JSON.stringify(paymentHistory.toJSON(), null, 2));
                     const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
                     if (!paymentResult.success) {
-                        console.error('❌ Error creando registro en payment_history:', paymentResult.error);
-                    } else {
-                        console.log('✅ Registro agregado a payment_history:', invoice.id);
+                        // Error creando registro en payment_history
                     }
                 } catch (error) {
-                    console.error('❌ Error procesando pago exitoso de invoice:', error.message);
+                    // Error procesando pago exitoso de invoice
                 }
                 break;
                 
             case 'invoice.payment_failed':
-                console.log('❌ Pago de factura fallido:', event.data.object.id);
-                console.log('Event data:', JSON.stringify(event.data, null, 2));
                 try {
                     const invoice = event.data.object;
                     
@@ -187,24 +155,19 @@ const WebhooksRouter = async (req, res) => {
                             db
                         );
                         if (!result.success) {
-                            console.error('❌ Error actualizando suscripción en pago fallido:', result.error);
-                        } else {
-                            console.log('✅ Suscripción actualizada a unpaid:', subscriptionId);
+                            // Error actualizando suscripción en pago fallido
                         }
                     }
                     
                     // Agregar el invoice al payment_history
                     const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
                     eventData = invoice; // Guardar el invoice original para el email (tiene todos los campos que necesitan los views)
-                    console.log('📝 PaymentHistory creado:', JSON.stringify(paymentHistory.toJSON(), null, 2));
                     const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
                     if (!paymentResult.success) {
-                        console.error('❌ Error creando registro en payment_history:', paymentResult.error);
-                    } else {
-                        console.log('✅ Registro agregado a payment_history:', invoice.id);
+                        // Error creando registro en payment_history
                     }
                 } catch (error) {
-                    console.error('❌ Error procesando pago fallido de invoice:', error.message);
+                    // Error procesando pago fallido de invoice
                 }
                 break;
                 
@@ -214,7 +177,7 @@ const WebhooksRouter = async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ Error procesando webhook:', error.message);
+        // Error procesando webhook
     }
     
     // Enviar email al cliente (excepto para customer.created)
@@ -244,7 +207,6 @@ const WebhooksRouter = async (req, res) => {
         // Obtener email y nombre del cliente
         const customerInfo = await CustomersManager.getCustomersEmailAndName(customerId, db);
         if (!customerInfo.success) {
-            console.error('❌ Error obteniendo email y nombre del cliente:', customerInfo.error);
             return;
         }
         
@@ -283,7 +245,6 @@ const WebhooksRouter = async (req, res) => {
         
         // Early return si no hay contenido de email
         if (!emailContent) {
-            console.log('ℹ️ No hay contenido de email para el evento:', event.type);
             return;
         }
         
@@ -296,13 +257,10 @@ const WebhooksRouter = async (req, res) => {
         );
         
         if (!emailResult.success) {
-            console.error('❌ Error enviando email:', emailResult.error);
             return;
         }
-        
-        console.log('✅ Email enviado exitosamente a:', customerInfo.email);
     } catch (error) {
-        console.error('❌ Error en el proceso de envío de email:', error.message);
+        // Error en el proceso de envío de email
     }
     
     return;
