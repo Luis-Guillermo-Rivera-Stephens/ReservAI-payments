@@ -1,6 +1,7 @@
 const SubscriptionManager = require('../utils/SubscriptionManager');
 const CustomersManager = require('../utils/CustomersManager');
 const getStripeInstance = require('../data/StripeInstanceGetter');
+const SupportManager = require('../utils/SupportManager');
 
 const GetMyPaymentLinks = async (req, res) => {
     const { customer } = req;
@@ -10,7 +11,7 @@ const GetMyPaymentLinks = async (req, res) => {
     try {
         stripe = await getStripeInstance();
     } catch (error) {
-        console.error('❌ Error obteniendo instancia de Stripe:', error.message);
+        SupportManager.sendSupportTicket(req, "Error 500 en el handler de GetMyPaymentLinks", error.message);
         return res.status(500).json({ error: 'Internal server error' });
     }
 
@@ -36,7 +37,7 @@ const GetMyPaymentLinks = async (req, res) => {
     );
 
     if (!result.success) {
-        console.error('❌ Error creando payment links:', result.error || result.errors);
+        SupportManager.sendSupportTicket(req, "Error 500 en el handler de GetMyPaymentLinks", result.error || result.errors);
         return res.status(500).json({ 
             error: result.error || 'Error creating payment links',
             errors: result.errors

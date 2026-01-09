@@ -2,7 +2,6 @@ const WebhooksManager = require('../utils/WebhooksManager');
 const getStripeInstance = require('../data/StripeInstanceGetter');
 
 const VerifyStripeEvent = async (req, res, next) => {
-
     let stripe = null;
     try {
         stripe = await getStripeInstance();
