@@ -1,3 +1,4 @@
+const { addRequestTraceStep } = require('../utils/RequestTrace');
 const CustomersManager = require('../utils/CustomersManager');
 const { connectDB } = require('../data/connectDB');
 const SupportManager = require('../utils/SupportManager');
@@ -19,6 +20,7 @@ const CustomerIsAvailable = async (req, res, next) => {
     if (result.exists) {
         return res.status(400).json({ error: 'Customer already exists' });
     }
+    addRequestTraceStep(req, 'CustomerIsAvailable', { slot: 'new_customer_allowed' });
     next();
 }
 

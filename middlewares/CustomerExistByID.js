@@ -1,3 +1,4 @@
+const { addRequestTraceStep } = require('../utils/RequestTrace');
 const CustomersManager = require('../utils/CustomersManager');
 const { connectDB } = require('../data/connectDB');
 const SupportManager = require('../utils/SupportManager');
@@ -21,6 +22,9 @@ const CustomerExistByID = async (req, res, next) => {
     }
     req.customer = result.customer;
     console.log('CustomerExistByID: customer exists');
+    addRequestTraceStep(req, 'CustomerExistByID', {
+        stripe_customer_id: result.customer?.stripe_customer_id,
+    });
     next();
 }
 

@@ -1,5 +1,6 @@
 // Cargar variables de entorno
 require('dotenv').config();
+const Sentry = require('./instrument-sentry');
 // Configurar zona horaria para Guadalajara, Jalisco, México
 const timezone = process.env.TIMEZONE || 'America/Mexico_City';
 process.env.TZ = timezone;
@@ -16,6 +17,8 @@ const apiRouter = require('./router/api.router');
 const webhookRouter = require('./router/webhook.router');
 const VerifyStripeEvent = require('./middlewares/VerifyStripeEvent');
 const SQLInjectionDetector = require('./middlewares/SQLInjectionDetector');
+const { requestTraceMiddleware } = require('./utils/RequestTrace');
+const { sentryHttp5xxCapture } = require('./middlewares/SentryHttp5xxCapture');
 
 
 // Configuración del servidor
@@ -80,9 +83,11 @@ const helmetOptions = {
 app.use(helmet(helmetOptions));
 app.use(cors(corsOptions));
 app.set('trust proxy', 1);
+app.use(requestTraceMiddleware);
 
 // Aplicar rate limiting a todas las rutas
 app.use(limiter);
+app.use(sentryHttp5xxCapture);
 
 // Inicializar servidor y base de datos
 const startServer = async () => {
@@ -96,6 +101,8 @@ const startServer = async () => {
     
     app.use('/api/billing', express.json({ limit: '10mb' }), express.urlencoded({ extended: true, limit: '10mb' }), SQLInjectionDetector.middleware(), apiRouter);
     app.use('/api', express.json({ limit: '10mb' }), express.urlencoded({ extended: true, limit: '10mb' }), SQLInjectionDetector.middleware(), apiRouter);
+
+    Sentry.setupExpressErrorHandler(app);
 
     // Iniciar servidor
     app.listen(PORT, '0.0.0.0', () => {

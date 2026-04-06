@@ -1,3 +1,4 @@
+const { addRequestTraceStep } = require('../utils/RequestTrace');
 const AccountManager = require('../utils/AccountManager');
 const { connectDB } = require('../data/connectDB');
 const Account = require('../models/account');
@@ -29,6 +30,11 @@ const AccountExistByID = async (req, res, next) => {
     result.account = new Account(result.account.id, result.account.name, result.account.email, result.account.password, result.account.createdAt, result.account.started, result.account.verified, result.account.type, result.account.twofaenabled, result.account.salt);
     req.account = result.account;
     console.log('AccountExistByID: account exists');
+    addRequestTraceStep(req, 'AccountExistByID', {
+        account_id: String(result.account.id),
+        account_type: result.account.type,
+        verified: result.account.verified,
+    });
     next();
 }
 

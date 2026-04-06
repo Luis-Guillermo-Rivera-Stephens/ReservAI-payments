@@ -1,6 +1,7 @@
 const TokenClass = require('../utils/TokenClass');
 const TokenManager = require('../utils/TokenManager');
 const ApiKeyManager = require('../utils/ApiKeyManager');
+const { addRequestTraceStep } = require('../utils/RequestTrace');
 
 const VerifyToken = async (req, res, next) => {
     const token = req.headers['authorization'];
@@ -18,6 +19,7 @@ const VerifyToken = async (req, res, next) => {
         if (token_id) {
             req.token_id = token_id;
             req.token_type = "access";
+            addRequestTraceStep(req, 'VerifyToken', { auth_method: 'api_key' });
             next();
             return;
         }
@@ -39,6 +41,7 @@ const VerifyToken = async (req, res, next) => {
 
     req.token_id = token_.id;
     req.token_type = token_.token_type;
+    addRequestTraceStep(req, 'VerifyToken', { auth_method: 'jwt' });
     next();
 }
 

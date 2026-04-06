@@ -1,3 +1,4 @@
+const { addRequestTraceStep } = require('../utils/RequestTrace');
 const WebhooksManager = require('../utils/WebhooksManager');
 const getStripeInstance = require('../data/StripeInstanceGetter');
 
@@ -49,6 +50,10 @@ const VerifyStripeEvent = async (req, res, next) => {
     
     console.log('✅ Webhook verificado exitosamente:', result.event.id);
     req.event = result.event;
+    addRequestTraceStep(req, 'VerifyStripeEvent', {
+        stripe_event_id: result.event.id,
+        stripe_event_type: result.event.type,
+    });
     next();
 }
 

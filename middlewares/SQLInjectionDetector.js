@@ -1,3 +1,5 @@
+const { addRequestTraceStep } = require('../utils/RequestTrace');
+
 /**
  * SQLInjectionDetector - Middleware para detectar intentos de inyección SQL
  * 
@@ -230,6 +232,7 @@ class SQLInjectionDetector {
                     }
                 }
 
+                addRequestTraceStep(req, 'SQLInjectionDetector', { ok: true });
                 next();
             } catch (error) {
                 console.error('❌ Error in SQL Injection Detector:', error);

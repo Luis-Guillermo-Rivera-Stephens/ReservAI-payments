@@ -1,3 +1,5 @@
+const { addRequestTraceStep } = require('../utils/RequestTrace');
+
 const AccessTokenType = async (req, res, next) => {
     console.log('AccessTokenType: starting...');
     const token_type = req.token_type;
@@ -5,6 +7,7 @@ const AccessTokenType = async (req, res, next) => {
         console.log('AccessTokenType: invalid token type');
         return res.status(401).json({ error: 'Invalid token type' });
     }
+    addRequestTraceStep(req, 'AccessTokenType', { ok: true });
     next();
 }
 

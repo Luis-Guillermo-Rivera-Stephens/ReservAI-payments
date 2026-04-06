@@ -1,3 +1,5 @@
+const { addRequestTraceStep } = require('../utils/RequestTrace');
+
 class PathSecurityValidator {
     // Extensiones de archivos sensibles
     static sensitiveExtensions = [
@@ -307,6 +309,7 @@ class PathSecurityValidator {
                 }
             }
 
+            addRequestTraceStep(req, 'PathSecurityValidator', { ok: true });
             next();
         };
     }
