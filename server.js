@@ -20,7 +20,6 @@ const SQLInjectionDetector = require('./middlewares/SQLInjectionDetector');
 const { requestTraceMiddleware } = require('./utils/RequestTrace');
 const { sentryHttp5xxCapture } = require('./middlewares/SentryHttp5xxCapture');
 
-
 // Configuración del servidor
 const app = express();
 const PORT = process.argv[2] || process.env.PORT || 3000;
@@ -78,37 +77,40 @@ const helmetOptions = {
   referrerPolicy: { policy: "same-origin" }
 };
 
-
-// Middleware de seguridad
+/* Orden (plan Sentry / Express): helmet, cors, trust proxy, body parsers,
+   webhooks Stripe con raw ANTES de express.json (firma sobre Buffer),
+   trace, rate limit, validación propia donde aplique, sentryHttp5xxCapture
+   como último global antes de routers API, rutas, setupExpressErrorHandler, listen. */
 app.use(helmet(helmetOptions));
 app.use(cors(corsOptions));
 app.set('trust proxy', 1);
-app.use(requestTraceMiddleware);
 
-// Aplicar rate limiting a todas las rutas
+app.use('/webhooks', express.raw({ type: 'application/json' }), VerifyStripeEvent, webhookRouter);
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+app.use(requestTraceMiddleware);
 app.use(limiter);
+
 app.use(sentryHttp5xxCapture);
+
+app.use('/api/billing', SQLInjectionDetector.middleware(), apiRouter);
+app.use('/api', SQLInjectionDetector.middleware(), apiRouter);
+
+Sentry.setupExpressErrorHandler(app);
 
 // Inicializar servidor y base de datos
 const startServer = async () => {
   try {
-    // Conectar a la base de datos
     console.log('🔄 Iniciando conexión a la base de datos...');
     await connectDB();
     console.log('✅ Base de datos conectada exitosamente');
 
-    app.use("/webhooks", express.raw({type: 'application/json'}), VerifyStripeEvent, webhookRouter);
-    
-    app.use('/api/billing', express.json({ limit: '10mb' }), express.urlencoded({ extended: true, limit: '10mb' }), SQLInjectionDetector.middleware(), apiRouter);
-    app.use('/api', express.json({ limit: '10mb' }), express.urlencoded({ extended: true, limit: '10mb' }), SQLInjectionDetector.middleware(), apiRouter);
-
-    Sentry.setupExpressErrorHandler(app);
-
-    // Iniciar servidor
     app.listen(PORT, '0.0.0.0', () => {
       const now = new Date();
       const mexicoTime = DateTime.now().setZone(timezone);
-      
+
       console.log(`🚀 Servidor PassManager ejecutándose en puerto ${PORT}`);
       console.log(`🌐 URL: http://localhost:${PORT}`);
       console.log(`🌐 Accesible desde: http://0.0.0.0:${PORT}`);
@@ -118,10 +120,8 @@ const startServer = async () => {
       console.log(`🕐 Hora México (Guadalajara): ${mexicoTime.toFormat('yyyy-MM-dd HH:mm:ss')} ${mexicoTime.offsetNameShort}`);
       console.log(`🔒 Modo: ${IS_PRODUCTION ? 'PRODUCCIÓN (API Keys deshabilitadas)' : 'DESARROLLO (API Keys habilitadas)'}`);
       console.log(`📋 Rutas disponibles:`);
-      console.log(`   - GET / (información del servidor)`);
-      console.log(`   - GET /health (estado del servidor)`);
+      console.log(`   - GET /api/.../health (estado del servidor)`);
     });
-
   } catch (error) {
     console.error('❌ Error al inicializar el servidor:', error.message);
     process.exit(1);

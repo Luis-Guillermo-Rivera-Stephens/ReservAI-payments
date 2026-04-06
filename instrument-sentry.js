@@ -4,33 +4,17 @@
  */
 const Sentry = require('@sentry/node');
 
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'development',
-    // Evita enviar cookies/headers por defecto; datos sensibles van filtrados en SecurityLogger.
-    sendDefaultPii: process.env.SENTRY_SEND_DEFAULT_PII === 'true',
-    tracesSampleRate: Number.parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0'),
-    integrations: [Sentry.expressIntegration()],
-  });
-}
-
-module.exports = Sentry;
-/**
- * Debe cargarse antes que express (ver server.js).
- * Depende de variables ya cargadas con dotenv en server.js.
- */
-const Sentry = require('@sentry/node');
-
 /** Nombre del servicio en el título de issues y tag `service` (opcional: SENTRY_SERVICE_NAME). */
 const sentryServiceName = process.env.SENTRY_SERVICE_NAME || 'BackendService';
 const sentryTitleBracket = `[${sentryServiceName}]`;
 
-if (process.env.SENTRY_DSN) {
+const sentryDsn =
+  typeof process.env.SENTRY_DSN === 'string' ? process.env.SENTRY_DSN.trim() : '';
+
+if (sentryDsn) {
   Sentry.init({
-    dsn: process.env.SENTRY_DSN,
+    dsn: sentryDsn,
     environment: process.env.NODE_ENV || 'development',
-    // Evita enviar cookies/headers por defecto; datos sensibles van filtrados en SecurityLogger.
     sendDefaultPii: process.env.SENTRY_SEND_DEFAULT_PII === 'true',
     tracesSampleRate: Number.parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0'),
     integrations: [Sentry.expressIntegration()],

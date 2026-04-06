@@ -23,7 +23,7 @@ router.use(PathSecurityValidator.middleware());
 
 router.get('/health', (req, res) => {
     console.log('Health check: OK, time: ', new Date().toISOString());
-    return res.json({
+    return res.status(200).json({
       status: 'OK',
       uptime: process.uptime(),
       timestamp: new Date().toISOString()
