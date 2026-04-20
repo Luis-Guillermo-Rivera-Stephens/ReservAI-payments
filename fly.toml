@@ -1,5 +1,5 @@
 app = "passmanager-stripe-service"
-primary_region = "gdl"
+primary_region = "dfw"
 
 [build]
   dockerfile = "Dockerfile"
@@ -9,7 +9,7 @@ primary_region = "gdl"
   force_https = false
   auto_stop_machines = "suspend"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
 [[vm]]
   size = "shared-cpu-1x"
@@ -17,3 +17,4 @@ primary_region = "gdl"
 
 [env]
   PORT = "3001"
+  STAGE = "production"
