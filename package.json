@@ -10,7 +10,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@sentry/node": "^8.55.1",
+    "@sentry/node": "^10.66.0",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -20,7 +20,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "luxon": "^3.7.2",
-    "nodemailer": "^8.0.4",
+    "nodemailer": "^9.0.3",
     "pg": "^8.16.3",
     "stripe": "^20.1.0",
     "uuid": "^13.0.0"
