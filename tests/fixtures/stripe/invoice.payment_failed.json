@@ -1,0 +1,22 @@
+{
+  "id": "evt_invoice_failed_1",
+  "type": "invoice.payment_failed",
+  "data": {
+    "object": {
+      "id": "in_test456",
+      "object": "invoice",
+      "customer": "cus_test123",
+      "subscription": "sub_test123",
+      "status": "open",
+      "amount_paid": 0,
+      "amount_due": 99900,
+      "total": 99900,
+      "currency": "usd",
+      "created": 1700001000,
+      "period_start": 1700000000,
+      "period_end": 1702678400,
+      "number": "INV-0002",
+      "next_payment_attempt": 1700086400
+    }
+  }
+}
