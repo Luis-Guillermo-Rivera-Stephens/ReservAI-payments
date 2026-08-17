@@ -22,4 +22,15 @@ describe('EmailContentManager', () => {
     const content = await EmailContentManager.getEmailContent('User', 'unknown.event', {});
     expect(content).toBeNull();
   });
+
+  it('returns internal payment failed content', async () => {
+    const content = await EmailContentManager.getInternalPaymentFailedContent('User', {
+      payment_kind: 'suscripción',
+      customer_email: 'u@example.com',
+      amount_due: 99900,
+      currency: 'usd',
+    });
+    expect(content.subject).toContain('Pago fallido');
+    expect(content.content).toContain('suscripción');
+  });
 });

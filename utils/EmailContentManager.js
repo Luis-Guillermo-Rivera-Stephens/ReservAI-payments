@@ -3,6 +3,7 @@ const SubscriptionUpdatedMessage = require('../views/SubscriptionUpdated');
 const SubscriptionCancelledMessage = require('../views/SubscriptionCancelled');
 const PaymentSucceededMessage = require('../views/PaymentSucceeded');
 const PaymentFailedMessage = require('../views/PaymentFailed');
+const PaymentFailedInternalMessage = require('../views/PaymentFailedInternal');
 
 class EmailContentManager {
     static async getEmailContent(name, event_type, event_data) {
@@ -25,6 +26,10 @@ class EmailContentManager {
             default:
                 return null;
         }
+    }
+
+    static async getInternalPaymentFailedContent(name, event_data) {
+        return PaymentFailedInternalMessage.getMessage(name, event_data);
     }
 }
 
