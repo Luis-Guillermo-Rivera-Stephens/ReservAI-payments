@@ -4,6 +4,7 @@ jest.mock('../../utils/SubscriptionManager');
 jest.mock('../../utils/PaymentHistoryManager');
 jest.mock('../../utils/EmailContentManager');
 jest.mock('../../utils/EmailManager');
+jest.mock('../../utils/PaymentFailedAlertManager');
 
 const { connectDB } = require('../../data/connectDB');
 const CustomersManager = require('../../utils/CustomersManager');
@@ -11,6 +12,7 @@ const SubscriptionManager = require('../../utils/SubscriptionManager');
 const PaymentHistoryManager = require('../../utils/PaymentHistoryManager');
 const EmailContentManager = require('../../utils/EmailContentManager');
 const EmailManager = require('../../utils/EmailManager');
+const PaymentFailedAlertManager = require('../../utils/PaymentFailedAlertManager');
 const WebhooksRouter = require('../../handlers/WebhooksRouter');
 const { loadStripeFixture } = require('../helpers/stripeFixtures');
 const { createMockReq, createMockRes } = require('../helpers/mockReqRes');
@@ -40,6 +42,13 @@ describe('WebhooksRouter', () => {
       text_content: 'Hi',
     });
     EmailManager.sendEmailToCustomer.mockResolvedValue({ success: true });
+    EmailContentManager.getInternalPaymentFailedContent.mockResolvedValue({
+      subject: 'Pago fallido interno',
+      content: '<p>Fail</p>',
+      text_content: 'Fail',
+    });
+    EmailManager.sendEmailToInternalTeam.mockResolvedValue({ success: true });
+    PaymentFailedAlertManager.notifyTeam.mockResolvedValue({ success: true });
   });
 
   async function runWebhook(fixtureName) {
@@ -94,10 +103,27 @@ describe('WebhooksRouter', () => {
     expect(EmailManager.sendEmailToCustomer).toHaveBeenCalled();
   });
 
-  it('invoice.payment_failed marks unpaid and records history', async () => {
+  it('invoice.payment_failed marks unpaid, records history and alerts the team', async () => {
     await runWebhook('invoice.payment_failed');
     expect(SubscriptionManager.updateSubscriptionOnPaymentFailed).toHaveBeenCalled();
     expect(PaymentHistoryManager.createPaymentHistoryInDB).toHaveBeenCalled();
+    expect(PaymentFailedAlertManager.notifyTeam).toHaveBeenCalled();
+  });
+
+  it('payment_intent.payment_failed without invoice alerts the team', async () => {
+    await runWebhook('payment_intent.payment_failed');
+    expect(PaymentFailedAlertManager.notifyTeam).toHaveBeenCalled();
+    expect(EmailManager.sendEmailToCustomer).not.toHaveBeenCalled();
+  });
+
+  it('payment_intent.payment_failed with invoice still notifies manager (duplicate guard lives there)', async () => {
+    await runWebhook('payment_intent.payment_failed.invoice');
+    expect(PaymentFailedAlertManager.notifyTeam).toHaveBeenCalled();
+  });
+
+  it('subscription created does not send internal payment-failed alert', async () => {
+    await runWebhook('customer.subscription.created');
+    expect(PaymentFailedAlertManager.notifyTeam).not.toHaveBeenCalled();
   });
 
   it('unknown event still responds 200 immediately', async () => {

@@ -7,6 +7,7 @@ const SubscriptionManager = require('../utils/SubscriptionManager');
 const PaymentHistoryManager = require('../utils/PaymentHistoryManager');
 const EmailContentManager = require('../utils/EmailContentManager');
 const EmailManager = require('../utils/EmailManager');
+const PaymentFailedAlertManager = require('../utils/PaymentFailedAlertManager');
 
 
 
@@ -180,89 +181,73 @@ const WebhooksRouter = async (req, res) => {
         // Error procesando webhook
     }
     
+    let customerInfo = null;
+
     // Enviar email al cliente (excepto para customer.created)
     try {
-        // Early return si es customer.created
-        if (event.type === 'customer.created') {
-            return;
-        }
-        
-        const eventObject = event.data.object;
-        
-        // Early return si no hay customer
-        if (!eventObject.customer) {
-            return;
-        }
-        
-        // Obtener customer_id (puede ser string o objeto expandido)
-        const customerId = typeof eventObject.customer === 'string' 
-            ? eventObject.customer 
-            : eventObject.customer.id || eventObject.customer;
-        
-        // Early return si no hay customerId
-        if (!customerId) {
-            return;
-        }
-        
-        // Obtener email y nombre del cliente
-        const customerInfo = await CustomersManager.getCustomersEmailAndName(customerId, db);
-        if (!customerInfo.success) {
-            return;
-        }
-        
-        // Early return si no hay eventData
-        if (!eventData) {
-            return;
-        }
-        
-        // Convertir eventData al formato que esperan los views
-        let emailData = null;
-        if (eventData instanceof Subscription) {
-            // Para subscriptions, convertir a formato que esperan los views
-            const subscriptionJSON = eventData.toJSON();
-            emailData = {
-                plan_name: subscriptionJSON.plan_name,
-                amount: subscriptionJSON.amount * 100, // Convertir de dólares a centavos (los views esperan centavos)
-                current_period_start: subscriptionJSON.current_period_start instanceof Date 
-                    ? Math.floor(subscriptionJSON.current_period_start.getTime() / 1000) 
-                    : subscriptionJSON.current_period_start,
-                current_period_end: subscriptionJSON.current_period_end instanceof Date 
-                    ? Math.floor(subscriptionJSON.current_period_end.getTime() / 1000) 
-                    : subscriptionJSON.current_period_end,
-                status: subscriptionJSON.status
-            };
-        } else {
-            // Para invoices, eventData ya es el objeto invoice original de Stripe
-            emailData = eventData;
-        }
-        
-        // Obtener el contenido del email
-        const emailContent = await EmailContentManager.getEmailContent(
-            customerInfo.name,
-            event.type,
-            emailData
-        );
-        
-        // Early return si no hay contenido de email
-        if (!emailContent) {
-            return;
-        }
-        
-        // Enviar el email
-        const emailResult = await EmailManager.sendEmailToCustomer(
-            customerInfo.email,
-            emailContent.subject,
-            emailContent.content,
-            emailContent.text_content
-        );
-        
-        if (!emailResult.success) {
-            return;
+        if (event.type !== 'customer.created') {
+            const eventObject = event.data.object;
+
+            if (eventObject?.customer) {
+                const customerId = typeof eventObject.customer === 'string'
+                    ? eventObject.customer
+                    : eventObject.customer.id || eventObject.customer;
+
+                if (customerId) {
+                    const lookup = await CustomersManager.getCustomersEmailAndName(customerId, db);
+                    if (lookup.success) {
+                        customerInfo = lookup;
+                    }
+                }
+            }
+
+            if (customerInfo && eventData) {
+                let emailData = null;
+                if (eventData instanceof Subscription) {
+                    const subscriptionJSON = eventData.toJSON();
+                    emailData = {
+                        plan_name: subscriptionJSON.plan_name,
+                        amount: subscriptionJSON.amount * 100,
+                        current_period_start: subscriptionJSON.current_period_start instanceof Date
+                            ? Math.floor(subscriptionJSON.current_period_start.getTime() / 1000)
+                            : subscriptionJSON.current_period_start,
+                        current_period_end: subscriptionJSON.current_period_end instanceof Date
+                            ? Math.floor(subscriptionJSON.current_period_end.getTime() / 1000)
+                            : subscriptionJSON.current_period_end,
+                        status: subscriptionJSON.status
+                    };
+                } else {
+                    emailData = eventData;
+                }
+
+                const emailContent = await EmailContentManager.getEmailContent(
+                    customerInfo.name,
+                    event.type,
+                    emailData
+                );
+
+                if (emailContent) {
+                    await EmailManager.sendEmailToCustomer(
+                        customerInfo.email,
+                        emailContent.subject,
+                        emailContent.content,
+                        emailContent.text_content
+                    );
+                }
+            }
         }
     } catch (error) {
         // Error en el proceso de envío de email
     }
-    
+
+    try {
+        if (event.type === 'invoice.payment_failed' || event.type === 'payment_intent.payment_failed') {
+            await PaymentFailedAlertManager.notifyTeam(event, customerInfo);
+        }
+    } catch (error) {
+        // Error enviando alerta interna de pago fallido
+    }
+
     return;
 }
 
