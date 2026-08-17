@@ -3,12 +3,14 @@
  * para enriquecer Sentry sin persistir secretos ni tokens en claro.
  */
 
+const { getClientIp } = require('./ClientIp');
+
 function ensureTrace(req) {
     if (!req.passRequestTrace) {
         req.passRequestTrace = {
             startedAt: Date.now(),
             steps: [],
-            clientIp: req.ip,
+            clientIp: getClientIp(req),
             userAgent: req.get('User-Agent') ? String(req.get('User-Agent')).slice(0, 256) : null,
         };
     }
@@ -18,7 +20,7 @@ function requestTraceMiddleware(req, res, next) {
     req.passRequestTrace = {
         startedAt: Date.now(),
         steps: [],
-        clientIp: req.ip,
+        clientIp: getClientIp(req),
         userAgent: req.get('User-Agent') ? String(req.get('User-Agent')).slice(0, 256) : null,
     };
     next();

@@ -1,0 +1,10 @@
+{
+  "id": "evt_unknown_1",
+  "type": "account.updated",
+  "data": {
+    "object": {
+      "id": "acct_test",
+      "object": "account"
+    }
+  }
+}

@@ -7,6 +7,7 @@ const CustomerIsAvailable = require('../middlewares/CustomerIsAvailable');
 const CustomerExistByID = require('../middlewares/CustomerExistByID');
 const AccountExistByID = require('../middlewares/AccountExistByID');
 const VerifyToken = require('../middlewares/VerifyToken');
+const AccessTokenType = require('../middlewares/AccessTokenType');
 const PathSecurityValidator = require('../middlewares/PathSecurityValidator');
 
 //handlers
@@ -30,10 +31,12 @@ router.get('/health', (req, res) => {
     });
   });
 
-router.post("/customer", VerifyToken, AccountExistByID, AccountIsAClient, CustomerIsAvailable, CreateStripeCustomer);
-router.get("/portal", VerifyToken, AccountExistByID, AccountIsAClient, CustomerExistByID, CreatePortalSession);
-router.get("/links", VerifyToken, AccountExistByID, AccountIsAClient, CustomerExistByID, GetMyPaymentLinks);
-router.get("/status", VerifyToken, AccountExistByID, AccountIsAClient, CustomerExistByID, GetMySubscriptions);
+const withAccess = [VerifyToken, AccessTokenType, AccountExistByID, AccountIsAClient];
+
+router.post("/customer", ...withAccess, CustomerIsAvailable, CreateStripeCustomer);
+router.get("/portal", ...withAccess, CustomerExistByID, CreatePortalSession);
+router.get("/links", ...withAccess, CustomerExistByID, GetMyPaymentLinks);
+router.get("/status", ...withAccess, CustomerExistByID, GetMySubscriptions);
 
 
   // Middleware para manejar rutas no encontradas

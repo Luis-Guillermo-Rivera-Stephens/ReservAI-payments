@@ -1,0 +1,33 @@
+{
+  "id": "evt_sub_updated_noop_1",
+  "type": "customer.subscription.updated",
+  "data": {
+    "object": {
+      "id": "sub_test123",
+      "object": "subscription",
+      "customer": "cus_test123",
+      "status": "active",
+      "created": 1700000000,
+      "current_period_start": 1700000000,
+      "current_period_end": 1702678400,
+      "cancel_at_period_end": false,
+      "items": {
+        "data": [
+          {
+            "current_period_start": 1700000000,
+            "current_period_end": 1702678400,
+            "price": {
+              "id": "price_premium_test",
+              "unit_amount": 99900,
+              "product": "prod_test",
+              "metadata": { "plan": "Plan Premium" }
+            }
+          }
+        ]
+      }
+    },
+    "previous_attributes": {
+      "metadata": { "note": "minor change" }
+    }
+  }
+}

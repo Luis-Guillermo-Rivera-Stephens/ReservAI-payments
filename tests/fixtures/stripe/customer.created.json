@@ -1,0 +1,15 @@
+{
+  "id": "evt_customer_created_1",
+  "type": "customer.created",
+  "data": {
+    "object": {
+      "id": "cus_test123",
+      "object": "customer",
+      "created": 1700000000,
+      "email": "user@example.com",
+      "metadata": {
+        "user_id": "account-1"
+      }
+    }
+  }
+}

@@ -2,7 +2,6 @@ const { addRequestTraceStep } = require('../utils/RequestTrace');
 const AccountManager = require('../utils/AccountManager');
 const { connectDB } = require('../data/connectDB');
 const Account = require('../models/account');
-const SupportManager = require('../utils/SupportManager');
 const AccountExistByID = async (req, res, next) => {
     console.log('AccountExistByID: starting...');
     const id = req.token_id;
@@ -12,14 +11,12 @@ const AccountExistByID = async (req, res, next) => {
         db = await connectDB();
     } catch (error) {
         console.log('AccountExistByID: error', error);
-        SupportManager.sendSupportTicket(req, "Error 500 en el middleware de AccountExistByID", error.message);
         return res.status(500).json({ error: 'Internal server error' });
     }
     
     const result = await AccountManager.accountExistsByID(id, db);
     if (result.error) {
         console.log('AccountExistByID: error', result.error);
-        SupportManager.sendSupportTicket(req, "Error 500 en el middleware de AccountExistByID", result.error);
         return res.status(500).json({ error: result.error });
     }
     if (!result.exists) {
