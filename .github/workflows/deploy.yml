@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: audit
+        run: npm audit
+
       - name: Check required files
         run: |
           for f in Dockerfile fly.toml package.json server.js; do
