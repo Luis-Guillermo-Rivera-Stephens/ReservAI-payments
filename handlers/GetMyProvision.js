@@ -1,9 +1,8 @@
-const SubscriptionManager = require('../utils/SubscriptionManager');
+const TechnicalInfoManager = require('../utils/TechnicalInfoManager');
 const PaginationManager = require('../utils/PaginationManager');
 const { connectDB } = require('../data/connectDB');
 
-const GetMySubscriptions = async (req, res) => {
-    const { customer } = req;
+const GetMyProvision = async (req, res) => {
     const { account } = req;
     let page = req.query.page ? parseInt(req.query.page, 10) : 1;
     if (!Number.isFinite(page) || page < 1) page = 1;
@@ -17,31 +16,30 @@ const GetMySubscriptions = async (req, res) => {
     }
 
     const { offset } = PaginationManager.GetPagination(page, limit);
-    const result = await SubscriptionManager.getSubscriptionsSummaries(
-        customer.stripe_customer_id,
+    const result = await TechnicalInfoManager.getSetupsByAccountId(
         account.id,
-        db,
         offset,
-        limit + 1
+        limit + 1,
+        db
     );
     if (result.error) {
         return res.status(500).json({ error: result.error });
     }
 
-    let data = result.subscriptions;
-    let total = result.subscriptions.length > limit ? limit : result.subscriptions.length;
-    let next_page = result.subscriptions.length > limit ? page + 1 : null;
-    if (result.subscriptions.length > limit) {
+    let data = result.setups;
+    let total = result.setups.length > limit ? limit : result.setups.length;
+    let next_page = result.setups.length > limit ? page + 1 : null;
+    if (result.setups.length > limit) {
         data = data.slice(0, limit);
     }
 
     return res.status(200).json({
         data,
         total,
-        message: 'Suscripciones obtenidas correctamente',
+        message: 'Setups obtenidos',
         next_page,
         current_page: page,
     });
-}
+};
 
-module.exports = GetMySubscriptions;
+module.exports = GetMyProvision;

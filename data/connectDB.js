@@ -348,6 +348,18 @@ class DatabaseConnection {
     }
 
     getSSLConfig() {
+        const env = String(process.env.NODE_ENV || process.env.STAGE || '').trim().toLowerCase();
+        if (env === 'development' || env === 'dev' || env === 'test') {
+            console.log('🔓 SSL deshabilitado (modo development)');
+            return false;
+        }
+
+        const dbSSL = String(process.env.DB_SSL ?? '').trim().toLowerCase();
+        if (dbSSL === 'false' || dbSSL === '0' || dbSSL === 'off' || dbSSL === 'no') {
+            console.log('🔓 SSL deshabilitado (DB_SSL=false)');
+            return false;
+        }
+
         const certsDir = path.join(__dirname, '../certs');
 
         let certPath = null;

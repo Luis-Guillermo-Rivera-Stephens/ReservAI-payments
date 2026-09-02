@@ -8,6 +8,12 @@ const PaymentHistoryManager = require('../utils/PaymentHistoryManager');
 const EmailContentManager = require('../utils/EmailContentManager');
 const EmailManager = require('../utils/EmailManager');
 const PaymentFailedAlertManager = require('../utils/PaymentFailedAlertManager');
+const SetupPaidAlertManager = require('../utils/SetupPaidAlertManager');
+const TechnicalInfoManager = require('../utils/TechnicalInfoManager');
+const PaymentFanout = require('../utils/PaymentFanout');
+const VaultCrypto = require('../utils/VaultCrypto');
+const crypto = require('crypto');
+const uuid = require('uuid');
 
 
 
@@ -16,6 +22,7 @@ const WebhooksRouter = async (req, res) => {
     res.status(200).json({ received: true });
     let db = null;
     let eventData = null; // Variable para almacenar la instancia creada (Subscription o PaymentHistory)
+    let setupPaidInserted = false;
     try {
         db = await connectDB();
     } catch (error) {
@@ -43,6 +50,23 @@ const WebhooksRouter = async (req, res) => {
                     if (!result.success) {
                         return;
                     }
+                    if (subscription.technical_info_id) {
+                        await TechnicalInfoManager.linkSubscription(
+                            subscription.technical_info_id,
+                            subscription.stripe_subscription_id,
+                            db
+                        );
+                        await TechnicalInfoManager.setStatus(
+                            subscription.technical_info_id,
+                            'active',
+                            db
+                        );
+                    }
+                    await PaymentFanout.notifyBySubscriptionId(
+                        subscription.stripe_subscription_id,
+                        'ok',
+                        db
+                    );
                 } catch (error) {
                     // Error procesando suscripción creada
                 }
@@ -98,6 +122,12 @@ const WebhooksRouter = async (req, res) => {
                     if (!result.success) {
                         // Error actualizando suscripción cancelada en DB
                     }
+                    await TechnicalInfoManager.setStatusBySubscriptionId(
+                        subscriptionId,
+                        'unpaid',
+                        db
+                    );
+                    await PaymentFanout.notifyBySubscriptionId(subscriptionId, 'unpaid', db);
                 } catch (error) {
                     // Error procesando suscripción eliminada
                 }
@@ -126,14 +156,18 @@ const WebhooksRouter = async (req, res) => {
                                 // Error actualizando suscripción en pago exitoso
                             }
                         }
-                    }
-                    
-                    // Agregar el invoice al payment_history
-                    const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
-                    eventData = invoice; // Guardar el invoice original para el email (tiene todos los campos que necesitan los views)
-                    const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
-                    if (!paymentResult.success) {
-                        // Error creando registro en payment_history
+                        await TechnicalInfoManager.setStatusBySubscriptionId(
+                            subscriptionId,
+                            'active',
+                            db
+                        );
+                        const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
+                        eventData = invoice;
+                        const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
+                        if (!paymentResult.success) {
+                            // Error creando registro en payment_history
+                        }
+                        await PaymentFanout.notifyBySubscriptionId(subscriptionId, 'ok', db);
                     }
                 } catch (error) {
                     // Error procesando pago exitoso de invoice
@@ -158,20 +192,55 @@ const WebhooksRouter = async (req, res) => {
                         if (!result.success) {
                             // Error actualizando suscripción en pago fallido
                         }
-                    }
-                    
-                    // Agregar el invoice al payment_history
-                    const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
-                    eventData = invoice; // Guardar el invoice original para el email (tiene todos los campos que necesitan los views)
-                    const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
-                    if (!paymentResult.success) {
-                        // Error creando registro en payment_history
+                        await TechnicalInfoManager.setStatusBySubscriptionId(
+                            subscriptionId,
+                            'unpaid',
+                            db
+                        );
+                        const paymentHistory = PaymentHistory.fromStripeInvoice(invoice);
+                        eventData = invoice;
+                        const paymentResult = await PaymentHistoryManager.createPaymentHistoryInDB(paymentHistory, db);
+                        if (!paymentResult.success) {
+                            // Error creando registro en payment_history
+                        }
+                        await PaymentFanout.notifyBySubscriptionId(subscriptionId, 'unpaid', db);
                     }
                 } catch (error) {
                     // Error procesando pago fallido de invoice
                 }
                 break;
                 
+            case 'checkout.session.completed':
+                try {
+                    const session = event.data.object;
+                    const metadata = session.metadata || {};
+                    if (metadata.kind !== 'setup') {
+                        break;
+                    }
+                    const inboundPlain = crypto.randomBytes(32).toString('hex');
+                    const inboundBlob = VaultCrypto.encrypt(inboundPlain);
+                    const inserted = await TechnicalInfoManager.insertFromSetupSession({
+                        id: uuid.v4(),
+                        account_id: metadata.account_id,
+                        subdomain: metadata.subdomain,
+                        planned_plan: metadata.planned_plan,
+                        inbound_auth_key: inboundBlob,
+                        setup_session_id: session.id,
+                    }, db);
+                    setupPaidInserted = Boolean(inserted.success && inserted.tenant);
+                    if (setupPaidInserted) {
+                        eventData = {
+                            amount_total: session.amount_total,
+                            currency: session.currency,
+                            subdomain: metadata.subdomain,
+                            planned_plan: metadata.planned_plan,
+                        };
+                    }
+                } catch (error) {
+                    // Error procesando checkout de anticipo
+                }
+                break;
+
             default:
                 // Evento no manejado - no imprimir nada
                 break;
@@ -246,6 +315,14 @@ const WebhooksRouter = async (req, res) => {
         }
     } catch (error) {
         // Error enviando alerta interna de pago fallido
+    }
+
+    try {
+        if (setupPaidInserted) {
+            await SetupPaidAlertManager.notifyTeam(event, customerInfo);
+        }
+    } catch (error) {
+        // Error enviando alerta interna de anticipo
     }
 
     return;
